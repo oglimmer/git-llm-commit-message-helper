@@ -25,7 +25,7 @@ Usage: git llm [options]
 Generate an AI commit message from staged changes using the `llm` CLI.
 
 Options:
-  -y, --yes       Skip confirmation prompt; commit immediately
+  -y, --yes       Skip confirmation prompt; commit immediately (alias: --no-ask)
   -e, --edit      Go straight to editor (skip y/n/e prompt)
   -m, --model M   Use LLM model M (passed to `llm -m`)
   -h, --help      Show this help

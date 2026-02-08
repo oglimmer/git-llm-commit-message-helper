@@ -22,7 +22,7 @@ git llm                   # generate + review commit message
 Options:
 
 ```
--y, --yes       Commit immediately without confirmation
+-y, --yes       Commit immediately without confirmation (alias: --no-ask)
 -e, --edit      Open message in editor (skip y/n/e prompt)
 -m, --model M   Use a specific LLM model
 ```
