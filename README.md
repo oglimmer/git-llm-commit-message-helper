@@ -26,3 +26,14 @@ Options:
 -e, --edit      Open message in editor (skip y/n/e prompt)
 -m, --model M   Use a specific LLM model
 ```
+
+## Tip: git alias
+
+Stage everything and commit in one shot:
+
+```gitconfig
+[alias]
+    ai = !git add . && git llm --no-ask
+```
+
+Then just run `git ai`.
