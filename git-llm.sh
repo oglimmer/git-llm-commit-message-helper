@@ -88,11 +88,12 @@ $last_commits
 Generate a commit message for these changes following the style of the previous commits.
 
 Rules:
-- The LAST line of your response MUST be the commit message and nothing else.
-- All other lines MUST start with # (they will be treated as comments).
+- Begin your response with # Analysis:
+- All analysis lines MUST start with # (they will be treated as comments).
+- The LAST line of your response MUST be the commit message WITHOUT a # prefix.
 - The commit message should be concise (ideally under 72 chars).
 - Start with a lowercase verb in imperative mood (e.g. fix, add, update, refactor).
-- Begin your response with # Analysis:"
+- IMPORTANT: The final commit message line must NOT start with #."
 
 # --- Generate message ---
 temp_output=$(mktemp)
@@ -107,6 +108,11 @@ reset
 
 # --- Extract commit message (last non-empty, non-comment line) ---
 commit_message=$(grep -v '^[[:space:]]*#' "$temp_output" | grep -v '^[[:space:]]*$' | tail -1)
+
+# Fallback: if LLM prefixed every line with #, use the last comment line stripped of #
+if [[ -z "$commit_message" ]]; then
+    commit_message=$(grep '^[[:space:]]*#' "$temp_output" | tail -1 | sed 's/^[[:space:]]*#[[:space:]]*//')
+fi
 
 if [[ -z "$commit_message" ]]; then
     die "LLM did not produce a usable commit message"
