@@ -9,12 +9,14 @@ set -euo pipefail
 # --- Cleanup trap ---
 typeset -a _cleanup_files=()
 cleanup() { for f in "${_cleanup_files[@]}"; do [[ -f "$f" ]] && rm -f "$f"; done }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'cleanup; exit 130' INT
+trap 'cleanup; exit 143' TERM
 
 # --- Helpers ---
-dim()   { [[ -t 1 ]] && printf '\x1b[2m'; }
-reset() { [[ -t 1 ]] && printf '\x1b[0m'; }
-bold()  { [[ -t 1 ]] && printf '\x1b[1m'; }
+dim()   { [[ -t 1 ]] && printf '\x1b[2m'; return 0; }
+reset() { [[ -t 1 ]] && printf '\x1b[0m'; return 0; }
+bold()  { [[ -t 1 ]] && printf '\x1b[1m'; return 0; }
 
 die() { echo "error: $1" >&2; exit "${2:-1}"; }
 
@@ -118,11 +120,6 @@ reset
 # --- Extract commit message (last non-empty, non-comment line) ---
 # `|| true` so that grep finding no match (exit 1) doesn't trip `set -e`/pipefail
 commit_message=$(grep -v '^[[:space:]]*#' "$temp_output" | grep -v '^[[:space:]]*$' | tail -1) || true
-
-# Fallback: if LLM prefixed every line with #, use the last comment line stripped of #
-if [[ -z "$commit_message" ]]; then
-    commit_message=$(grep '^[[:space:]]*#' "$temp_output" | tail -1 | sed 's/^[[:space:]]*#[[:space:]]*//') || true
-fi
 
 if [[ -z "$commit_message" ]]; then
     die "LLM did not produce a usable commit message"

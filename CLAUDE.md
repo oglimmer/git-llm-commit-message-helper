@@ -16,7 +16,7 @@ The script is meant to be installed as a git subcommand. When placed on `$PATH` 
 2. Warns if diff exceeds 5000 lines
 3. Builds a prompt including: staged file list, diff stat, last 5 commit messages, and formatting rules
 4. Pipes the full staged diff to `llm` with the prompt, streaming output to terminal
-5. Extracts the commit message (last non-empty, non-comment line from LLM output); if every line was `#`-prefixed, falls back to the last comment line with the `#` stripped
+5. Extracts the commit message (last non-empty, non-comment line from LLM output); aborts with an error if no usable line is found
 6. Based on mode (`--yes`, `--edit`, or default interactive prompt), either commits directly, opens an editor, or asks user to confirm/edit/abort
 
 ## Key Design Decisions
