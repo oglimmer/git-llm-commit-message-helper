@@ -18,6 +18,15 @@ bold()  { [[ -t 1 ]] && printf '\x1b[1m'; }
 
 die() { echo "error: $1" >&2; exit "${2:-1}"; }
 
+# Open $1 (a file) in the user's editor, then echo its contents.
+edit_message() {
+    local file="$1"
+    local editor_cmd
+    editor_cmd=$(git var GIT_EDITOR 2>/dev/null || echo "${VISUAL:-${EDITOR:-vi}}")
+    eval "$editor_cmd" '"$file"'
+    cat "$file"
+}
+
 usage() {
     cat <<'EOF'
 Usage: git llm [options]
@@ -107,11 +116,12 @@ echo
 reset
 
 # --- Extract commit message (last non-empty, non-comment line) ---
-commit_message=$(grep -v '^[[:space:]]*#' "$temp_output" | grep -v '^[[:space:]]*$' | tail -1)
+# `|| true` so that grep finding no match (exit 1) doesn't trip `set -e`/pipefail
+commit_message=$(grep -v '^[[:space:]]*#' "$temp_output" | grep -v '^[[:space:]]*$' | tail -1) || true
 
 # Fallback: if LLM prefixed every line with #, use the last comment line stripped of #
 if [[ -z "$commit_message" ]]; then
-    commit_message=$(grep '^[[:space:]]*#' "$temp_output" | tail -1 | sed 's/^[[:space:]]*#[[:space:]]*//')
+    commit_message=$(grep '^[[:space:]]*#' "$temp_output" | tail -1 | sed 's/^[[:space:]]*#[[:space:]]*//') || true
 fi
 
 if [[ -z "$commit_message" ]]; then
@@ -119,7 +129,7 @@ if [[ -z "$commit_message" ]]; then
 fi
 
 # Strip leading/trailing whitespace
-commit_message=$(echo "$commit_message" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+commit_message=$(printf '%s\n' "$commit_message" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
 
 # --- Confirm / edit / abort ---
 bold
@@ -134,12 +144,9 @@ case "$mode" in
     edit)
         temp_file=$(mktemp)
         _cleanup_files+=("$temp_file")
-        echo "$commit_message" > "$temp_file"
+        printf '%s\n' "$commit_message" > "$temp_file"
 
-        editor_cmd=$(git var GIT_EDITOR 2>/dev/null || echo "${VISUAL:-${EDITOR:-vi}}")
-        eval "$editor_cmd" '"$temp_file"'
-
-        edited=$(cat "$temp_file")
+        edited=$(edit_message "$temp_file")
         if [[ -z "$edited" ]]; then
             echo "Empty message — commit cancelled."
             exit 1
@@ -156,12 +163,9 @@ case "$mode" in
                 e|edit)
                     temp_file=$(mktemp)
                     _cleanup_files+=("$temp_file")
-                    echo "$commit_message" > "$temp_file"
+                    printf '%s\n' "$commit_message" > "$temp_file"
 
-                    editor_cmd=$(git var GIT_EDITOR 2>/dev/null || echo "${VISUAL:-${EDITOR:-vi}}")
-                    eval "$editor_cmd" '"$temp_file"'
-
-                    edited=$(cat "$temp_file")
+                    edited=$(edit_message "$temp_file")
                     if [[ -z "$edited" ]]; then
                         echo "Empty message — commit cancelled."
                         exit 1
@@ -186,7 +190,7 @@ esac
 # --- Commit (use -F to handle multi-line messages properly) ---
 temp_msg=$(mktemp)
 _cleanup_files+=("$temp_msg")
-echo "$commit_message" > "$temp_msg"
+printf '%s\n' "$commit_message" > "$temp_msg"
 
 if git commit -F "$temp_msg"; then
     echo "Committed."
