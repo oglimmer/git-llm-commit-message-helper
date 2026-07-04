@@ -1,7 +1,9 @@
 #!/bin/zsh
 # -----------------------------------------------------------------------------
 # git-llm: AI-powered commit message generator
-# Uses the `llm` CLI: https://llm.datasette.io/en/stable/
+# Backends:
+#   llm    - Simon Willison's `llm` CLI: https://llm.datasette.io/en/stable/
+#   claude - Anthropic's Claude Code CLI in headless mode (`claude -p`)
 # -----------------------------------------------------------------------------
 
 set -euo pipefail
@@ -33,13 +35,15 @@ usage() {
     cat <<'EOF'
 Usage: git llm [options]
 
-Generate an AI commit message from staged changes using the `llm` CLI.
+Generate an AI commit message from staged changes.
 
 Options:
-  -y, --yes       Skip confirmation prompt; commit immediately (alias: --no-ask)
-  -e, --edit      Go straight to editor (skip y/n/e prompt)
-  -m, --model M   Use LLM model M (passed to `llm -m`)
-  -h, --help      Show this help
+  -y, --yes         Skip confirmation prompt; commit immediately (alias: --no-ask)
+  -e, --edit        Go straight to editor (skip y/n/e prompt)
+  -b, --backend B   Backend to use: llm | claude
+                    (default: $GIT_LLM_BACKEND, else first of llm/claude found)
+  -m, --model M     Model to use (passed to `llm -m` or `claude --model`)
+  -h, --help        Show this help
 
 Workflow:
   1. Stage changes with `git add`
@@ -52,23 +56,46 @@ EOF
 
 # --- Parse arguments ---
 mode=prompt   # prompt | yes | edit
-llm_model=()
+model=""
+backend="${GIT_LLM_BACKEND:-}"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -y|--yes|--no-ask) mode=yes ;;
         -e|--edit)         mode=edit ;;
+        -b|--backend)
+            [[ -z "${2:-}" ]] && die "--backend requires an argument"
+            backend="$2"; shift ;;
         -m|--model)
             [[ -z "${2:-}" ]] && die "--model requires an argument"
-            llm_model=(-m "$2"); shift ;;
+            model="$2"; shift ;;
         -h|--help) usage ;;
         *) die "unknown option: $1" ;;
     esac
     shift
 done
 
+# --- Resolve backend ---
+if [[ -z "$backend" ]]; then
+    if command -v llm >/dev/null 2>&1; then
+        backend=llm
+    elif command -v claude >/dev/null 2>&1; then
+        backend=claude
+    else
+        die "no backend found. Install llm (https://llm.datasette.io/en/stable/) or claude (https://claude.com/claude-code)"
+    fi
+fi
+
+case "$backend" in
+    llm)
+        command -v llm >/dev/null 2>&1 || die "llm CLI not found. Install: https://llm.datasette.io/en/stable/" ;;
+    claude)
+        command -v claude >/dev/null 2>&1 || die "claude CLI not found. Install: https://claude.com/claude-code" ;;
+    *)
+        die "unknown backend: $backend (expected: llm, claude)" ;;
+esac
+
 # --- Preflight checks ---
-command -v llm >/dev/null 2>&1 || die "llm CLI not found. Install: https://llm.datasette.io/en/stable/"
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || die "not inside a git repository"
 
 if [[ -z "$(git diff --cached --name-only)" ]]; then
@@ -110,10 +137,18 @@ Rules:
 temp_output=$(mktemp)
 _cleanup_files+=("$temp_output")
 
+# Build the backend command. Both read the diff on stdin and take the prompt
+# as an argument; `claude -p` is Claude Code's non-interactive print mode.
+typeset -a backend_cmd
+case "$backend" in
+    llm)    backend_cmd=(llm);       [[ -n "$model" ]] && backend_cmd+=(-m "$model") ;;
+    claude) backend_cmd=(claude -p); [[ -n "$model" ]] && backend_cmd+=(--model "$model") ;;
+esac
+
 dim
-echo "generating commit message..."
+echo "generating commit message ($backend)..."
 echo
-git diff --cached | llm ${llm_model[@]+"${llm_model[@]}"} "$prompt" | tee "$temp_output"
+git diff --cached | "${backend_cmd[@]}" "$prompt" | tee "$temp_output"
 echo
 reset
 
