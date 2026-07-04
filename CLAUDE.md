@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-`git-llm` is a single-file zsh script (`git-llm.sh`) that generates AI-powered git commit messages. It pipes `git diff --cached` into Simon Willison's [`llm` CLI](https://llm.datasette.io/en/stable/) and presents the suggested message for review.
+`git-llm` is a single-file zsh script (`git-llm.sh`) that generates AI-powered git commit messages. It pipes `git diff --cached` into one of two backends — Simon Willison's [`llm` CLI](https://llm.datasette.io/en/stable/) or Anthropic's `claude` CLI in headless print mode (`claude -p`) — and presents the suggested message for review.
 
 ## Installation
 
@@ -12,10 +12,10 @@ The script is meant to be installed as a git subcommand. When placed on `$PATH` 
 
 ## How It Works
 
-1. Validates prerequisites: `llm` CLI installed, inside a git repo, staged changes exist
+1. Resolves the backend (`-b`/`--backend` flag, `$GIT_LLM_BACKEND`, or auto-detect: `llm` first, then `claude`) and validates prerequisites: backend CLI installed, inside a git repo, staged changes exist
 2. Warns if diff exceeds 5000 lines
 3. Builds a prompt including: staged file list, diff stat, last 5 commit messages, and formatting rules
-4. Pipes the full staged diff to `llm` with the prompt, streaming output to terminal
+4. Pipes the full staged diff to the backend (`llm "$prompt"` or `claude -p "$prompt"`) with the prompt, streaming output to terminal
 5. Extracts the commit message (last non-empty, non-comment line from LLM output); aborts with an error if no usable line is found
 6. Based on mode (`--yes`, `--edit`, or default interactive prompt), either commits directly, opens an editor, or asks user to confirm/edit/abort
 
